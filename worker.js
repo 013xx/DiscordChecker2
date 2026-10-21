@@ -3,74 +3,49 @@ const DISCORD_ENDPOINT =
 
 const USERNAME_REGEX = /^[a-z0-9._]+$/;
 
-function json(data, status = 200) {
-  return Response.json(data, {
+function reply(data, status = 200) {
+  return new Response(JSON.stringify(data), {
     status,
-    headers: { "Cache-Control": "no-store" }
+    headers: {
+      "Content-Type": "application/json; charset=utf-8",
+      "Cache-Control": "no-store",
+      "Access-Control-Allow-Origin": "*"
+    }
   });
 }
 
-async function checkDiscord(username) {
+async function discordCheck(username) {
   const response = await fetch(DISCORD_ENDPOINT, {
     method: "POST",
     headers: {
-      "Content-Type": "application/json",
       "Accept": "application/json",
-      "User-Agent": "Mozilla/5.0 DiscordUsernameChecker"
+      "Content-Type": "application/json",
+      "Origin": "https://discord.com",
+      "Referer": "https://discord.com/",
+      "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/136.0.0.0 Safari/537.36"
     },
-    body: JSON.stringify({ username })
+    body: JSON.stringify({ username }),
+    redirect: "follow"
   });
 
+  const raw = await response.text();
+
+  let data = null;
+  try { data = JSON.parse(raw); } catch {}
+
   if (response.status === 429) {
-    return json({
+    return reply({
       status: "rate_limited",
       verified: false,
       username,
-      retryAfter: response.headers.get("retry-after")
+      retryAfter:
+        response.headers.get("retry-after") ||
+        response.headers.get("x-ratelimit-reset-after")
     }, 429);
   }
 
-  if (response.status === 400 || response.status === 422) {
-    let discord = null;
-    try { discord = await response.json(); } catch {}
-    return json({
-      status: "invalid",
-      verified: true,
-      username,
-      discord
-    }, 400);
-  }
-
-  if (response.status === 401 || response.status === 403) {
-    return json({
-      status: "blocked",
-      verified: false,
-      username
-    }, response.status);
-  }
-
-  if (response.status >= 500) {
-    return json({
-      status: "unknown",
-      verified: false,
-      username,
-      discordStatus: response.status
-    }, 502);
-  }
-
-  let data;
-  try {
-    data = await response.json();
-  } catch {
-    return json({
-      status: "unknown",
-      verified: false,
-      username
-    }, 502);
-  }
-
-  if (response.ok && typeof data.taken === "boolean") {
-    return json({
+  if (response.ok && data && typeof data.taken === "boolean") {
+    return reply({
       status: data.taken ? "taken" : "available",
       taken: data.taken,
       verified: true,
@@ -78,11 +53,85 @@ async function checkDiscord(username) {
     });
   }
 
-  return json({
-    status: "unknown",
+  if (response.status === 400 || response.status === 422) {
+    return reply({
+      status: "invalid",
+      verified: true,
+      username,
+      discord: data || raw.slice(0, 500)
+    }, 400);
+  }
+
+  // Diagnostic information instead of silently showing UNVERIFIED.
+  return reply({
+    status: "discord_error",
     verified: false,
-    username
+    username,
+    discordStatus: response.status,
+    discordResponse: data || raw.slice(0, 500)
   }, 502);
+}
+
+async function handleCheck(request) {
+  if (request.method !== "POST") {
+    return reply({ error: "METHOD_NOT_ALLOWED" }, 405);
+  }
+
+  try {
+    const body = await request.json();
+    const username =
+      typeof body?.username === "string"
+        ? body.username.trim().toLowerCase()
+        : "";
+
+    if (!username) {
+      return reply({
+        status: "invalid",
+        verified: false,
+        error: "USERNAME_REQUIRED"
+      }, 400);
+    }
+
+    if (username.length < 2 || username.length > 32) {
+      return reply({
+        status: "invalid",
+        verified: true,
+        username,
+        error: "INVALID_LENGTH"
+      }, 400);
+    }
+
+    if (!USERNAME_REGEX.test(username)) {
+      return reply({
+        status: "invalid",
+        verified: true,
+        username,
+        error: "INVALID_CHARACTERS"
+      }, 400);
+    }
+
+    if (
+      username.startsWith(".") ||
+      username.endsWith(".") ||
+      username.includes("..")
+    ) {
+      return reply({
+        status: "invalid",
+        verified: true,
+        username,
+        error: "INVALID_PERIODS"
+      }, 400);
+    }
+
+    return await discordCheck(username);
+  } catch (error) {
+    return reply({
+      status: "server_error",
+      verified: false,
+      error: "REQUEST_FAILED",
+      detail: String(error?.message || error)
+    }, 500);
+  }
 }
 
 export default {
@@ -90,68 +139,21 @@ export default {
     const url = new URL(request.url);
 
     if (url.pathname === "/api/discord/check") {
-      if (request.method !== "POST") {
-        return json({ error: "METHOD_NOT_ALLOWED" }, 405);
-      }
-
-      try {
-        const body = await request.json();
-        const username =
-          typeof body?.username === "string"
-            ? body.username.trim().toLowerCase()
-            : "";
-
-        if (!username) {
-          return json({
-            status: "invalid",
-            verified: false,
-            error: "USERNAME_REQUIRED"
-          }, 400);
-        }
-
-        if (username.length < 2 || username.length > 32) {
-          return json({
-            status: "invalid",
-            verified: true,
-            username,
-            error: "INVALID_LENGTH"
-          }, 400);
-        }
-
-        if (!USERNAME_REGEX.test(username)) {
-          return json({
-            status: "invalid",
-            verified: true,
-            username,
-            error: "INVALID_CHARACTERS"
-          }, 400);
-        }
-
-        if (
-          username.startsWith(".") ||
-          username.endsWith(".") ||
-          username.includes("..")
-        ) {
-          return json({
-            status: "invalid",
-            verified: true,
-            username,
-            error: "INVALID_PERIODS"
-          }, 400);
-        }
-
-        return await checkDiscord(username);
-      } catch (error) {
-        console.error("Discord checker error:", error);
-        return json({
-          status: "unknown",
-          verified: false,
-          error: "DISCORD_REQUEST_FAILED"
-        }, 500);
-      }
+      return handleCheck(request);
     }
 
-    // Everything else is served from the static assets directory.
+    // CORS preflight, if the endpoint is tested from another frontend.
+    if (request.method === "OPTIONS") {
+      return new Response(null, {
+        status: 204,
+        headers: {
+          "Access-Control-Allow-Origin": "*",
+          "Access-Control-Allow-Methods": "POST, OPTIONS",
+          "Access-Control-Allow-Headers": "Content-Type"
+        }
+      });
+    }
+
     return env.ASSETS.fetch(request);
   }
 };

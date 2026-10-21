@@ -1,19 +1,16 @@
-# Discord Checker — Cloudflare Worker
+# DiscordChecker2
 
-This is intentionally FLAT. There are no `functions/` or `api/` folders.
+Flat Cloudflare Worker repository.
 
 Files:
-- `index.html` — website
-- `worker.js` — Cloudflare Worker + Discord API proxy
-- `wrangler.jsonc` — Worker configuration
-- `.gitignore`
+- index.html
+- worker.js
+- wrangler.jsonc
+- .gitignore
 
 Cloudflare Workers Builds:
-- Root directory: `/`
-- Build command: leave blank
-- Deploy command: `npx wrangler deploy`
+- Root: /
+- Build command: empty
+- Deploy command: npx wrangler deploy
 
-Do NOT upload `node_modules`.
-
-The Worker serves the website through the Assets binding and handles:
-POST /api/discord/check
+The Worker calls Discord's unauthenticated username-attempt endpoint and only marks a result VERIFIED when Discord returns a boolean `taken` field.
