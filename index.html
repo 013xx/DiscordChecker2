@@ -1,29 +1,12 @@
 <!doctype html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Discord Username Checker</title>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Discord Username Checker</title>
 <style>
-*{box-sizing:border-box}body{margin:0;min-height:100vh;background:#0b0d12;color:#f5f7fb;font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;display:grid;place-items:center;padding:24px}.card{width:min(680px,100%);background:#12151c;border:1px solid #242a35;border-radius:24px;padding:34px;box-shadow:0 24px 80px #0008}.badge{display:inline-flex;padding:7px 11px;border-radius:999px;background:#1b2230;color:#9fb7ff;font-size:12px;font-weight:800;letter-spacing:.08em}h1{font-size:42px;line-height:1;margin:18px 0 10px}p{color:#929aaa;margin:0 0 26px}.row{display:flex;gap:10px}input{flex:1;min-width:0;background:#0c0f15;color:white;border:1px solid #2b3340;border-radius:13px;padding:15px;font-size:16px;outline:none}input:focus{border-color:#657cff}button{border:0;border-radius:13px;padding:0 22px;background:#5865f2;color:white;font-weight:800;cursor:pointer}button:disabled{opacity:.55}.result{margin-top:18px;min-height:74px;border:1px solid #242a35;border-radius:15px;padding:17px;background:#0e1117;display:flex;align-items:center;justify-content:space-between;gap:15px}.status{font-weight:900}.sub{color:#8992a2;font-size:13px;margin-top:5px}.dot{width:11px;height:11px;border-radius:50%;background:#626a78;flex:none}.ok .dot{background:#35d07f}.bad .dot{background:#ff5d73}.warn .dot{background:#ffbd4a}small{display:block;color:#626b7a;margin-top:18px}@media(max-width:560px){.row{flex-direction:column}button{height:50px}.card{padding:24px}h1{font-size:34px}}
-</style>
-</head>
-<body>
-<main class="card">
-<span class="badge">LIVE DISCORD CHECK</span>
-<h1>Username Checker</h1>
-<p>Check a Discord username against Discord's live username availability endpoint.</p>
-<form id="form" class="row">
-<input id="username" autocomplete="off" maxlength="32" placeholder="username">
-<button id="check">Check</button>
-</form>
-<div id="result" class="result"><div><div class="status">Ready</div><div class="sub">Enter a username to check.</div></div><span class="dot"></span></div>
-<small id="detail">Verified results come directly from Discord.</small>
-</main>
+*{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;background:#0b0d12;color:#fff;font-family:system-ui,-apple-system,Segoe UI,sans-serif;padding:24px}.card{width:min(680px,100%);padding:34px;border:1px solid #252b36;border-radius:24px;background:#12151c;box-shadow:0 25px 80px #0008}.badge{font-size:12px;font-weight:800;letter-spacing:.08em;color:#aab8ff;background:#1c2230;border-radius:999px;padding:7px 11px}h1{font-size:42px;margin:18px 0 8px}p{color:#929aaa}.row{display:flex;gap:10px;margin-top:24px}input{flex:1;background:#0c0f15;border:1px solid #303744;color:#fff;border-radius:13px;padding:15px;font-size:16px}button{border:0;border-radius:13px;background:#5865f2;color:#fff;font-weight:800;padding:0 22px;cursor:pointer}.result{margin-top:18px;border:1px solid #252b36;border-radius:15px;padding:18px;background:#0e1117}.status{font-weight:900}.sub{color:#8f98a8;font-size:13px;margin-top:5px}@media(max-width:560px){.row{flex-direction:column}button{height:50px}h1{font-size:34px}}
+</style></head><body><main class="card"><span class="badge">LIVE DISCORD CHECK</span><h1>Username Checker</h1><p>Check a Discord username and get a verified Discord response.</p>
+<form id="f" class="row"><input id="u" maxlength="32" autocomplete="off" placeholder="username"><button>Check</button></form>
+<div id="r" class="result"><div class="status">Ready</div><div class="sub">Enter a username to check.</div></div></main>
 <script>
-const form=document.getElementById("form"),input=document.getElementById("username"),button=document.getElementById("check"),result=document.getElementById("result"),detail=document.getElementById("detail");
-function show(a,b,c=""){result.className="result "+c;result.innerHTML=`<div><div class="status">${a}</div><div class="sub">${b}</div></div><span class="dot"></span>`}
-form.onsubmit=async e=>{e.preventDefault();let username=input.value.trim().toLowerCase();if(!username)return show("INVALID","Enter a username.","bad");button.disabled=true;button.textContent="Checking...";show("CHECKING","Contacting Discord...","warn");detail.textContent="";try{let r=await fetch("/api/discord/check",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({username})}),d=await r.json();if(d.status==="available")show("VERIFIED / UNTAKEN",`${username} is available.`,"ok");else if(d.status==="taken")show("VERIFIED / TAKEN",`${username} is already taken.`,"bad");else if(d.status==="invalid")show("INVALID","Discord rejected this username.","bad");else if(d.status==="rate_limited")show("RATE LIMITED","Discord is rate limiting this request.","warn");else{show("UNVERIFIED",`Discord returned HTTP ${d.discordStatus||"unknown"}.`,"warn");detail.textContent=d.discordResponse?`Discord response: ${JSON.stringify(d.discordResponse).slice(0,300)}`:"Check the Worker logs for the exact response.";}}catch(err){show("UNVERIFIED","The checker could not reach the Worker.","warn");detail.textContent=err.message}finally{button.disabled=false;button.textContent="Check"}};
-</script>
-</body>
-</html>
+const f=document.querySelector("#f"),u=document.querySelector("#u"),r=document.querySelector("#r");
+const show=(a,b)=>r.innerHTML='<div class="status">'+a+'</div><div class="sub">'+b+'</div>';
+f.onsubmit=async e=>{e.preventDefault();let x=u.value.trim().toLowerCase();if(!x)return show("INVALID","Enter a username.");show("CHECKING","Contacting the checker server...");let b=f.querySelector("button");b.disabled=true;try{let q=await fetch("/api/discord/check",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({username:x})}),d=await q.json();if(d.status==="available")show("VERIFIED / UNTAKEN",x+" is available.");else if(d.status==="taken")show("VERIFIED / TAKEN",x+" is taken.");else if(d.status==="rate_limited")show("RATE LIMITED","Please wait before checking again.");else if(d.status==="invalid")show("INVALID","Discord rejected this username.");else show("UNVERIFIED","Discord returned HTTP "+(d.discordStatus||q.status)+".");}catch(err){show("UNVERIFIED","Could not reach the checker server.")}finally{b.disabled=false}};
+</script></body></html>
